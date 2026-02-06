@@ -25,16 +25,40 @@ class GuildOracle(nn.Module):
     Architecture : MLP profond (trop profond !)
     """
 
-    def __init__(self, input_dim: int = 8, hidden_dim: int = 256, num_layers: int = 5):
+    def __init__(self, input_dim: int = 8, hidden_dim: int = 8, num_layers: int = 1, dropout: float = 0.35):
         """
         Args:
             input_dim: Nombre de features (8 stats)
-            hidden_dim: Dimension des couches cachées
-            num_layers: Nombre de couches cachées
+            hidden_dim: Dimension des couches cachées (petit pour généraliser)
+            num_layers: Nombre de couches cachées (0 = régression logistique)
+            dropout: Taux de dropout pour régularisation
         """
         super().__init__()
-        # TODO
-        self.network = nn.Sequential()
+
+        # Architecture avec BatchNorm pour s'adapter à différentes distributions
+        layers = []
+
+        # BatchNorm en entrée : normalise les features selon le batch
+        # Aide à gérer les différences de distribution entre train et test
+        layers.append(nn.BatchNorm1d(input_dim))
+
+        if num_layers == 0:
+            layers.append(nn.Linear(input_dim, 1))
+        else:
+            layers.append(nn.Linear(input_dim, hidden_dim))
+            layers.append(nn.BatchNorm1d(hidden_dim))
+            layers.append(nn.ReLU())
+            layers.append(nn.Dropout(dropout))
+
+            for _ in range(num_layers - 1):
+                layers.append(nn.Linear(hidden_dim, hidden_dim))
+                layers.append(nn.BatchNorm1d(hidden_dim))
+                layers.append(nn.ReLU())
+                layers.append(nn.Dropout(dropout))
+
+            layers.append(nn.Linear(hidden_dim, 1))
+
+        self.network = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
